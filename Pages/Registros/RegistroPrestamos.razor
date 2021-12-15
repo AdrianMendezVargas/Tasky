@@ -1,0 +1,226 @@
+﻿@page "/rPrestamos"
+@inject IToastService toast
+
+<div class="container p-0 p-lg-4 mt-3">
+    <div class="card shadow-lg w-100">
+        <div class="card-header bg-dark">
+            <div class="d-flex">
+                <div class="mx-3">
+                    <h3 class="text-light"><i class="oi oi-dollar me-3" />Prestamos</h3>
+                </div>
+                <div class="mx-3">
+                    <button class="btn btn-dark border-light" @onclick="AbrirModal">
+                        <i class="oi oi-plus" />
+                        Agregar
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body table-responsive">
+            @if (Prestamos == null) {
+                <div>
+                    <h4>Cargando...</h4>
+                </div>
+            } else {
+                <table class="table table-hover text-nowrap">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Prestamo Id</th>
+                            <th>Monto</th>
+                            <th>Cliente Id</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var prestamo in Prestamos) {
+                            <tr>
+                                <td>@prestamo.Id</td>
+                                <td>@prestamo.Monto</td>
+                                <td>@prestamo.ClienteId</td>
+                                <td class="d-flex justify-content-end">
+                                    <button class="btn btn-dark" @onclick="()=>EditarCliente(prestamo)">Ver</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+    @if (ModalAbierto) {
+        <Dialogo Title="Agregar prestamo" OnClose="CerrarModal">
+            <Body>
+                <EditForm id="form" Model="Prestamo" OnValidSubmit="GuardarCliente">
+                    <div class="w-100 d-flex flex-column px-5 py-2">
+                        <div class="form-floating mb-3">
+                            <select @onchange="SeleccionarCliente" class="form-select" id="floatingSelect" aria-label="Floating label select example">
+                                <option selected hidden disabled>Seleccione el Cliente</option>
+                                @foreach (var cliente in Clientes) {
+                                    if (cliente.Id == Prestamo.ClienteId) {
+
+                                        <option value="@cliente.Id" selected>@cliente.Nombre</option>
+                                    } else {
+
+                                        <option value="@cliente.Id">@cliente.Nombre</option>
+                                    }
+                                }
+                            </select>
+                            <label for="floatingSelect">Cliente</label>
+                        </div>
+                        <div class="form-floating mb-3">
+                            <InputNumber @bind-Value="Prestamo.Monto" class="form-control m-0" placeholder="." />
+                            <label for="">Monto</label>
+                        </div>
+                        <ValidationMessage For="()=>Prestamo.Monto" />
+                        <div class="d-flex">
+                            <div class="form-floating mb-3 me-2">
+                                <InputNumber @bind-Value="Prestamo.InteresAnual" class="form-control m-0" placeholder="." />
+                                <label for="">Interes anual (%)</label>
+                            </div>
+                            <ValidationMessage For="()=>Prestamo.InteresAnual" />
+                            <div class="form-floating mb-3 w-100">
+                                <InputNumber @bind-Value="Prestamo.PlazoMeses" class="form-control m-0" placeholder="." />
+                                <label for="">Plazo (Meses)</label>
+                            </div>
+                            <ValidationMessage For="()=>Prestamo.PlazoMeses" />
+                        </div>
+                        <div class="d-flex">
+                            <h4 class="mb-2 mt-3">Cuotas</h4>
+                            <button type="button" class="btn btn-primary ms-auto" @onclick="CalcularCuotas">Calcular</button>
+                        </div>
+                        <table class="table table-responsive">
+                            <thead>
+                                <tr>
+                                    <th>Numero</th>
+                                    <th>Monto cuota</th>
+                                    <th>Capital</th>
+                                    <th>Interes</th>
+                                    <th>Monto restante</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var cuota in Prestamo.Cuotas) {
+                                    <tr>
+                                        <th>@cuota.NumeroCuota</th>
+                                        <th>@cuota.Monto.ToString("N2")</th>
+                                        <th>@cuota.Capital.ToString("N2")</th>
+                                        <th>@cuota.Interes.ToString("N2")</th>
+                                        <th>@cuota.MontoRestante.ToString("N2")</th>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <DataAnnotationsValidator />
+                </EditForm>
+            </Body>
+            <Footer>
+                <button form="form" type="submit" class="btn btn-primary">Guardar</button>
+                <button type="button" class="btn btn-danger" @onclick="EliminarCliente">Eliminar</button>
+            </Footer>
+        </Dialogo>
+    }
+</div>
+
+@code {
+    [Inject]
+    public Tasky.BLL.PrestamosBLL PrestamosBLL { get; set; }
+
+    public int ClienteIndex { get; set; }
+
+    [Inject]
+    public Tasky.BLL.ClientesBLL ClientesBLL { get; set; }
+
+    public Tasky.Models.Prestamo Prestamo { get; set; } = new Models.Prestamo();
+
+    public bool ModalAbierto { get; set; }
+    public List<Tasky.Models.Prestamo> Prestamos { get; set; }
+    public List<Tasky.Models.Cliente> Clientes { get; set; }
+
+    void AbrirModal() {
+        ModalAbierto = true;
+    }
+
+    void CerrarModal() {
+        Prestamo = new Models.Prestamo();
+        ModalAbierto = false;
+    }
+
+    protected override async Task OnInitializedAsync() {
+        await RefrescarTabla();
+        Clientes = await ClientesBLL.GetListAsync(c => true);
+    }
+
+    async Task RefrescarTabla() {
+        Prestamos = await PrestamosBLL.GetListAsync(c => true);
+    }
+
+    async Task GuardarCliente() {
+        bool guardado = await PrestamosBLL.Guardar(Prestamo);
+        if (guardado) {
+            toast.ShowSuccess("Guardado");
+        } else {
+            toast.ShowError("Error al guardar");
+        }
+
+        Prestamo = new Models.Prestamo();
+        CerrarModal();
+        await RefrescarTabla();
+    }
+
+    void EditarCliente(Tasky.Models.Prestamo prestamo) {
+        Prestamo = prestamo;
+        AbrirModal();
+    }
+
+    async Task EliminarCliente() {
+        bool eliminado = await PrestamosBLL.Eliminar(Prestamo);
+        if (eliminado) {
+            toast.ShowSuccess("Eliminado");
+        } else {
+            toast.ShowError("Error al eliminar");
+        }
+
+        CerrarModal();
+        await RefrescarTabla();
+    }
+
+    void SeleccionarCliente(ChangeEventArgs e) {
+        int clienteId = int.Parse(e.Value.ToString());
+
+        if (clienteId > 0) {
+
+            Prestamo.ClienteId = clienteId;
+        }
+    }
+
+    void CalcularCuotas() {
+        Prestamo.Cuotas.Clear();
+
+        double interesMensual = (Prestamo.InteresAnual / 12) / 100;
+
+        for (int i = 0 ; i < Prestamo.PlazoMeses ; i++) {
+
+            var cuota = new Tasky.Models.Cuota();
+
+            cuota.NumeroCuota = i + 1;
+
+            decimal montoRestanteCuotaAnterior = cuota.NumeroCuota == 1 ? Prestamo.Monto : Prestamo.Cuotas[i - 1].MontoRestante;
+
+            cuota.Monto = Prestamo.Monto * (decimal)((Math.Pow((1 + interesMensual) , Prestamo.PlazoMeses) * interesMensual) / (Math.Pow((1 + interesMensual) , Prestamo.PlazoMeses) - 1));
+            cuota.Interes = montoRestanteCuotaAnterior * (decimal)interesMensual;
+            cuota.Capital = cuota.Monto - cuota.Interes;
+            cuota.MontoRestante = montoRestanteCuotaAnterior - cuota.Capital;
+
+            cuota.Monto = Math.Round(cuota.Monto , 5);
+            cuota.Interes = Math.Round(cuota.Interes , 5);
+            cuota.Capital = Math.Round(cuota.Capital , 5);
+            cuota.MontoRestante = Math.Round(cuota.MontoRestante , 5);
+
+            Prestamo.Cuotas.Add(cuota);
+
+        }
+
+    }
+
+}

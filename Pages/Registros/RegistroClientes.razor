@@ -1,0 +1,125 @@
+﻿@page "/rClientes"
+@inject IToastService toast
+
+<div class="container p-0 p-lg-4 mt-3">
+    <div class="card shadow-lg w-100">
+        <div class="card-header bg-dark">
+            <div class="d-flex">
+                <div class="mx-3">
+                    <h3 class="text-light"><i class="oi oi-person me-3" />Clientes</h3>
+                </div>
+                <div class="mx-3">
+                    <button class="btn btn-dark border-light" @onclick="AbrirModal">
+                        <i class="oi oi-plus" />
+                        Agregar
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body table-responsive">
+            @if (Clientes == null) {
+                <div>
+                    <h4>Cargando...</h4>
+                </div>
+            } else {
+                <table class="table table-hover text-nowrap">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Cliente Id</th>
+                            <th>Nombres</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cliente in Clientes) {
+                            <tr>
+                                <td>@cliente.Id</td>
+                                <td>@cliente.Nombre</td>
+                                <td class="d-flex justify-content-end">
+                                    <button class="btn btn-dark" @onclick="()=>EditarCliente(cliente)">Ver</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+    @if (ModalAbierto) {
+        <Dialogo Title="Agregar cliente" OnClose="CerrarModal">
+            <Body>
+                <EditForm id="form" Model="Cliente" OnValidSubmit="GuardarCliente">
+                    <div class="w-100 d-flex flex-column px-5 py-2">
+                        <div class="form-floating mb-3">
+                            <InputText @bind-Value="Cliente.Nombre" id="floatingInput" class="form-control m-0" placeholder="." />
+                            <label for="floatingInput">Nombres</label>
+                        </div>
+                        <ValidationMessage For="()=>Cliente.Nombre" />
+                    </div>
+                    <DataAnnotationsValidator />
+                </EditForm>
+            </Body>
+            <Footer>
+                <button form="form" type="submit" class="btn btn-primary">Guardar</button>
+                <button type="button" class="btn btn-danger" @onclick="EliminarCliente">Eliminar</button>
+            </Footer>
+        </Dialogo>
+    }
+</div>
+
+@code {
+    [Inject]
+    public Tasky.BLL.ClientesBLL ClientesBLL { get; set; }
+
+    public Tasky.Models.Cliente Cliente { get; set; } = new Models.Cliente();
+
+    public bool ModalAbierto { get; set; }
+    public List<Tasky.Models.Cliente> Clientes { get; set; }
+
+    void AbrirModal() {
+        ModalAbierto = true;
+    }
+
+    void CerrarModal() {
+        ModalAbierto = false;
+    }
+
+    protected override async Task OnInitializedAsync() {
+        await RefrescarTabla();
+    }
+
+    async Task RefrescarTabla() {
+        Clientes = await ClientesBLL.GetListAsync(c => true);
+    }
+
+    async Task GuardarCliente() {
+        bool guardado = await ClientesBLL.Guardar(Cliente);
+        if (guardado) {
+            toast.ShowSuccess("Guardado");
+        } else {
+            toast.ShowError("Error al guardar");
+        }
+
+        Cliente = new Models.Cliente();
+        CerrarModal();
+        await RefrescarTabla();
+    }
+
+    void EditarCliente(Tasky.Models.Cliente cliente) {
+        Cliente = cliente;
+        AbrirModal();
+    }
+
+    async Task EliminarCliente() {
+        bool eliminado = await ClientesBLL.Eliminar(Cliente);
+        if (eliminado) {
+            toast.ShowSuccess("Eliminado");
+        } else {
+            toast.ShowError("Error al eliminar");
+        }
+
+        CerrarModal();
+        await RefrescarTabla();
+    }
+
+}
